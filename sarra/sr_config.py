@@ -970,6 +970,8 @@ class sr_config:
                 self.logger.error("sr_config/__on_heartbeat__ 3 Type: %s, Value: %s,  ..." % (stype, svalue))
                 self.logger.error( "plugin %s, execution failed." % plugin )
 
+        self.logger.flush()
+
         return True
 
     def get_exchange_option(self):
