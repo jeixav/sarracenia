@@ -21,13 +21,23 @@ STATUS: EXPERIMENTAL
 Sarracenia version 2 messages are the current standard, used for terabytes
 and millions of files per day of transfers. Version 3 is a proposal for a next
 iteration of Sarracenia messages, but it is not fully implemented, and 
-not in use anywhere.
+not in use anywhere, and may never be used. It is also not frozen yet
+and subject to change.
 
 Note that Version 3 does not change any semantics of Version 2. The fields
 and their meaning is the same in version 3 as it was in version 2. The change
 in payload protocol is targetted at simplifying future implementations
 and enabling use by messaging protocols other than pre-1.0 AMQP.
 See `Changes from v02`_ for more details.
+
+To generate messages in v03 format, use following setting::
+
+  post_topic_prefix v03.post
+
+To select messages to consume in that format::
+
+  topic_prefix v03.post
+
 
 
 SYNOPSIS
@@ -38,7 +48,7 @@ Version 03 format of file change announcements for sr_post.
 
 An sr_post message consists of a topic, and the *BODY* 
 
-**AMQP Topic:** *<version>.post.{<dir>.}*
+**AMQP Topic:** *<version>.[post|report].{<dir>.}*
 
 ::
 
@@ -67,6 +77,12 @@ An sr_post message consists of a topic, and the *BODY*
           "atime"         - last access time of a file (optional)
           "mtime"         - last modification time of a file (optional)
           "mode"          - permission bits (optional)
+
+          For "v03.report" topic messages the following addtional
+          headers will be present:
+  
+          "report"   - status report field documented in `Report Messages`_
+          "message"  - status report message documented in `Report Messages`_
 
           additional user defined name:value pairs are permitted.
 
@@ -160,6 +176,7 @@ For example, if a file is placed on http://www.example.com/a/b/c/d/foo.txt,
 then the complete topic of the message will be:  *v03.post.a.b.c.d*
 AMQP fields are limited to 255 characters, and the characters in the field are utf8 
 encoded, so actual length limit may be less than that. 
+
 
 note::
 
@@ -330,6 +347,86 @@ called *headers*.
  in a protocol specific header (AMQP HEADER.) when an application reads the AMQP header
  into memory, it will typically add this to the in-memory structure.
 
+Report Messages
+---------------
+
+Some clients may return telemetry to the origin of downloaded data for troubleshooting
+and statistical purposes. Such messages, have the *v03.report* topic, and have a *report*
+header which is a space separated string with four fields:
+
+ *<report_time> <report_code> <report_host> <report_user>*
+
+ * *<report_code>*  result codes describe in the next session
+
+ * *<report_time>*  time the report was generated.
+
+ * *<report_host>*  hostname from which the retrieval was initiated.
+
+ * *<report_user>*  broker username from which the retrieval was initiated.
+
+
+Report_Code
+~~~~~~~~~~~
+
+The report code is a three digit status code, adopted from the HTTP protocol (w3.org/IETF RFC 2616)
+encoded as text.  As per the RFC, any code returned should be interpreted as follows:
+
+	* 2xx indicates successful completion,
+	* 3xx indicates further action is required to complete the operation.
+	* 4xx indicates a permanent error on the client prevented a successful operation.
+	* 5xx indicates a problem on the server prevented successful operation.
+
+.. NOTE::
+   FIXME: need to validate whether our use of error codes co-incides with the general intent
+   expressed above... does a 3xx mean we expect the client to do something? does 5xx mean
+   that the failure was on the broker/server side?
+
+The specific error codes returned, and their meanings are implementation-dependent.
+For the sarracenia implementation, the following codes are defined:
+
++----------+--------------------------------------------------------------------------------------------+
+|   Code   | Corresponding text and meaning for sarracenia implementation                               |
++==========+============================================================================================+
+|   201    | Download successful. (variations: Downloaded, Inserted, Published, Copied, or Linked)      |
++----------+--------------------------------------------------------------------------------------------+
+|   205    | Reset Content: truncated. File is shorter than originally expected (changed length         |
+|          | during transfer) This only arises during multi-part transfers.                             |
++----------+--------------------------------------------------------------------------------------------+
+|   205    | Reset Content: checksum recalculated on receipt.                                           |
++----------+--------------------------------------------------------------------------------------------+
+|   304    | Not modified (Checksum validated, unchanged, so no download resulted.)                     |
++----------+--------------------------------------------------------------------------------------------+
+|   307    | Insertion deferred (writing to temporary part file for the moment.)                        |
++----------+--------------------------------------------------------------------------------------------+
+|   417    | Expectation Failed: invalid message (corrupt headers)                                      |
++----------+--------------------------------------------------------------------------------------------+
+|   496    | failure: During send, other protocol failure.                                              |
++----------+--------------------------------------------------------------------------------------------+
+|   497    | failure: During send, other protocol failure.                                              |
++----------+--------------------------------------------------------------------------------------------+
+|   499    | Failure: Not Copied. SFTP/FTP/HTTP download problem                                        |
++----------+--------------------------------------------------------------------------------------------+
+|   499    | Failure: Not Copied. SFTP/FTP/HTTP download problem                                        |
++----------+--------------------------------------------------------------------------------------------+
+|   503    | Service unavailable. delete (File removal not currently supported.)                        |
++----------+--------------------------------------------------------------------------------------------+
+|   503    | Unable to process: Service unavailable                                                     |
++----------+--------------------------------------------------------------------------------------------+
+|   503    | Unsupported transport protocol specified in posting.                                       |
++----------+--------------------------------------------------------------------------------------------+
+|   xxx    | Message and file validation status codes are script dependent                              |
++----------+--------------------------------------------------------------------------------------------+
+
+
+Other Report Fields
+~~~~~~~~~~~~~~~~~~~
+
+
+*<report_message>* a string.
+
+
+
+
 
 Optional Headers
 ----------------
@@ -469,6 +566,12 @@ pairs.
        so net change is +6 characters. per header. Most v02 messages have 6 headers,
        net: +36 bytes 
 
+   * In v03, the format of save files is the same as message payload.
+     In v02 it was a json tuple that included a topic field, the body, and the headers.
+
+   * In v03, the report format is a post message with a header, rather than
+     being parsed differently. So this single spec applies to both.
+       
 
 Optimization Possibilities
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

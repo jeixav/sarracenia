@@ -205,15 +205,23 @@ class sr_message():
            self.topic     = self.topic.replace('%20',' ')
            self.topic     = self.topic.replace('%23','#')
            if msg.body[0] == '[' :
-               ( self.pubtime, self.baseurl, self.relpath, self.headers ) = json.loads(msg.body)
+               self.pubtime, self.baseurl, self.relpath, self.headers = json.loads(msg.body)
                self.notice = "%s %s %s" % ( self.pubtime, self.baseurl, self.relpath )
            else:
                self.headers   = msg.properties['application_headers']
-               self.notice    = msg.body
+
+               if type(msg.body) == bytes: 
+                    self.notice = msg.body.decode("utf-8")
+               else:
+                    self.notice = msg.body
+
+               if 'pulse' in self.topic:
+                   self.pubtime = self.notice.split(' ')[0]
+               else:
+                   self.pubtime, self.baseurl, self.relpath = self.notice.split(' ')[0:3]
 
            self.isRetry   = msg.isRetry
 
-           if type(self.notice) == bytes: self.notice = self.notice.decode("utf-8")
 
         # pulse message... parse it
         # exchange='v02.pulse'
@@ -252,7 +260,7 @@ class sr_message():
 
            path  = token[2].strip('/')
            words = path.split('/')
-           self.topic    = 'v02.post.' + '.'.join(words[:-1])
+           self.topic    = self.post_topic_prefix + '.'.join(words[:-1])
            self.logger.debug(" modified for topic = %s" % self.topic)
 
         # adjust headers from -headers option
@@ -281,6 +289,10 @@ class sr_message():
      
         e = self.get_elapse()
 
+        if self.topic_prefix.startswith('v03'):
+           self.headers['report'] = "%s %s %s %s" % ( e, self.code, self.host, self.user )
+
+        # v02 filler... remove 2020.
         self.report_notice         = "%s %s %s %d %s %s %f" % \
                 (self.pubtime, self.baseurl, self.relpath, self.code, \
                      self.host, self.user, e )
@@ -299,7 +311,6 @@ class sr_message():
 
 
         # if  there is a publisher
-
         if self.report_publisher != None :
 
            # run on_report plugins
@@ -372,10 +383,14 @@ class sr_message():
         self.url     = urllib.parse.urlparse(self.urlstr)
 
         if self.mtype == 'report' or self.mtype == 'log': # log included for compatibility... prior to rename..
-           self.report_code   = int(token[3])
-           self.report_host   = token[4]
-           self.report_user   = token[5]
-           self.report_elapse = float(token[6])
+
+           if self.topic_prefix.startswith('v02'):
+               self.report_code   = int(token[3])
+               self.report_host   = token[4]
+               self.report_user   = token[5]
+               self.report_elapse = float(token[6])
+           else:
+               ( self.report_elapse, self.report_code, self.report_host, self.report_user ) = self.headers['report'].split()
 
         self.partstr = None
         if 'parts'   in self.headers :
@@ -429,8 +444,6 @@ class sr_message():
 
         if self.post_topic_prefix != self.topic_prefix:
             self.topic = self.topic.replace(self.topic_prefix,self.post_topic_prefix,1)
-
-        self.logger.warning('FIXME topic=%s ( topic_prefix=%s post_topic_prefix=%s ) ' % ( self.topic, self.topic_prefix, self.post_topic_prefix ) )
 
         if len(self.topic.encode("utf8")) >= amqp_ss_maxlen :
            mxlen=amqp_ss_maxlen 
@@ -499,7 +512,7 @@ class sr_message():
 
         path  = new_file.strip('/')
         words = path.split('/')
-        self.topic = 'v02.post.' + '.'.join(words[:-1])
+        self.topic = self.post_topic_prefix + '.'.join(words[:-1])
 
         self.headers[ 'sum' ] = sumstr
         self.headers[ 'parts' ] = '1,%d,0,0' % fstat.st_size

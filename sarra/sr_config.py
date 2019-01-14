@@ -10,7 +10,6 @@
 #
 # sr_config.py : python3 utility tool to configure sarracenia programs
 #
-#
 # Code contributed by:
 #  Michel Grenier - Shared Services Canada
 #  Last Changed   : Sep 22 10:41:32 EDT 2015
@@ -276,9 +275,12 @@ class sr_config:
 
     def log_settings(self):
 
-        self.logger.info( "log settings start for %s (version: %s):" % (self.program_name, sarra.__version__) )
-        self.logger.info( "\tinflight=%s events=%s use_pika=%s topic_prefix=%s" % ( self.inflight, self.events, self.use_pika, self.topic_prefix) )
-        self.logger.info( "\tsuppress_duplicates=%s retry_mode=%s retry_ttl=%sms" % ( self.caching, self.retry_mode, self.retry_ttl ) )
+        self.logger.info( "log settings start for %s (version: %s):" % \
+           (self.program_name, sarra.__version__) )
+        self.logger.info( "\tinflight=%s events=%s use_pika=%s topic_prefix=%s" % \
+           ( self.inflight, self.events, self.use_pika, self.topic_prefix) )
+        self.logger.info( "\tsuppress_duplicates=%s basis=%s retry_mode=%s retry_ttl=%sms" % \
+           ( self.caching, self.cache_basis, self.retry_mode, self.retry_ttl ) )
         self.logger.info( "\texpire=%sms reset=%s message_ttl=%s prefetch=%s accept_unmatch=%s delete=%s" % \
            ( self.expire, self.reset, self.message_ttl, self.prefetch, self.accept_unmatch, self.delete ) )
         self.logger.info( "\theartbeat=%s sanity_log_dead=%s default_mode=%03o default_mode_dir=%03o default_mode_log=%03o discard=%s durable=%s" % \
@@ -639,7 +641,7 @@ class sr_config:
         self.exchange_suffix      = None
         self.exchanges            = [ 'xlog', 'xpublic', 'xreport', 'xwinnow' ]
         self.topic_prefix         = 'v02.post'
-        self.post_topic_prefix    = 'v02.post'
+        self.post_topic_prefix    = None
         self.subtopic             = None
 
         self.queue_name           = None
@@ -673,6 +675,7 @@ class sr_config:
         # cache
         self.cache                = None
         self.caching              = False
+        self.cache_basis         = 'path'
         self.cache_stat           = False
 
         # save/restore
@@ -764,6 +767,7 @@ class sr_config:
         self.source               = None
         self.source_from_exchange = False
 
+
         self.users                = {}
         self.users_flag           = False
 
@@ -792,6 +796,8 @@ class sr_config:
         self.inflight             = 'unspecified'
 
         self.notify_only          = False
+
+        self.windows_run         = 'exe'
 
         # 2 object not to reset in child
         if not hasattr(self,'logpath') :
@@ -1469,7 +1475,7 @@ class sr_config:
                      accepting   = words0 in [ 'accept', 'get' ]
                      pattern     = words1
 
-                     if sys.platform == 'win32' and words1.find( '\\' ) :
+                     if sys.platform == 'win32' and (words1.find( '\\' ) >= 0):
                          self.logger.warning( "%s %s" % ( words0, words1 ) )
                          self.logger.warning( "use of backslash \\ is an escape character. For a path separator, use forward slash." )
 
@@ -1576,6 +1582,16 @@ class sr_config:
                         self.heartbeat_cache_installed = True
                      #if self.caching: ####@
                      #   self.cache = sr_cache(self) ####@
+
+                elif words0 in [ 'suppress_duplicates_basis', 'sdb', 'cache_basis', 'cb' ] : # See: sr_post.1 sr_watch.1
+                        known_bases = [ 'data', 'name', 'path' ]
+                        if words1 in known_bases:
+                            self.cache_basis = words1
+                        else:
+                            self.logger.error("unknown basis for duplicate suppression: %s, should be one of: %s (default: %s)" % \
+                                ( words1, known_bases, self.cache_basis ) )
+
+                        n = 2
 
                 elif words0 == 'cache_stat'   : # FIXME! what is this?
                      if (words1 is None) or words[0][0:1] == '-' : 
@@ -2257,7 +2273,7 @@ class sr_config:
                      self.rename = words1
                      n = 2
 
-                elif words0 in ['report_back','rb']:  # See: sr_subscribe.1
+                elif words0 in ['report_back','reportback','rb']:  # See: sr_subscribe.1
                      if (words1 is None) or words[0][0:1] == '-' : 
                         self.reportback = True
                         n = 1
@@ -2398,7 +2414,9 @@ class sr_config:
                 elif words0 == 'sum': # See: sr_config.7 
                      self.sumflg = words[1]
                      ok = self.validate_sum()
-                     if not ok : needexit = True
+                     if not ok : 
+                        self.logger.error("unknown checksum specified: %s, should be one of: %s or z" % ( self.sumflg, ', '.join(self.sumalgos.keys()) ) )
+                        needexit = True
                      n = 2
 
                 elif words0 == 'timeout': # See: sr_sarra.8
@@ -2441,6 +2459,16 @@ class sr_config:
                 elif words0 == 'vip': # See: sr_poll.1, sr_winnow.1
                      self.vip = words[1]
                      n = 2
+
+                elif words0 in [ 'windows_run', 'wr'  ] : # See: sr_post.1 sr_watch.1
+                        known_runs = [ 'exe', 'pyw', 'py' ]
+                        if words1 in known_runs:
+                            self.windows_run = words1
+                        else:
+                            self.logger.error("unknown choice of what to run on Windows: %s, should be one of: %s (default: %s)" % \
+                                ( words1, known_runs, self.windows_run ) )
+
+                        n = 2
 
                 else :
                      # if unknown option is supplied, create a list for the values 
