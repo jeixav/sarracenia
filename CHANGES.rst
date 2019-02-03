@@ -6,9 +6,10 @@ lists all changes between versions.
 
 **git repo**
 
-* new:    windows installer!
+* new:    Switch AMQP binging from (abandoned) python3-amqplib to python3-amqp
+* new:    now builds windows installer!
 * new:    exp_2mqtt.py -> bridge to export to MQTT brokers.
-* new:    sample configuration: WMO_Sketch_2mqtt.conf 
+* new:    sample subscrbers: WMO_Sketch_2mqtt.conf, WMO_Sketch.conf
 
 **2.19.01b1**
 
