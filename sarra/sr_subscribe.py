@@ -1392,9 +1392,9 @@ class sr_subscribe(sr_instances):
                    if self.reportback: self.msg.report_publish(205,'Reset Content : checksum')
 
                 # onfly checksum is different from the message ???
-                if not self.msg.onfly_checksum == self.msg.checksum :
+                if not self.msg.onfly_checksum[2:] == self.msg.checksum :
                    self.logger.warning("onfly_checksum %s differ from message %s" %
-                                      (self.msg.onfly_checksum, self.msg.checksum))
+                                      (self.msg.onfly_checksum[2:], self.msg.checksum))
 
                    # force onfly checksum  in message
 
