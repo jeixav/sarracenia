@@ -364,6 +364,18 @@ called *headers*.
  in a protocol specific header (AMQP HEADER.) when an application reads the AMQP header
  into memory, it will typically add this to the in-memory structure.
 
+**"content": { "encoding": "[utf-8|base64]", "value" : "&lt;encoded file data&gt;"**
+
+ For small files, the content of the file itself may be included in the message, to
+ avoid the need for a separate download. There are valid values for encoding: 
+
+ * utf-8 (*text*), and 
+
+ * base64 (*binary*) 
+
+ 
+
+
 Report Messages
 ---------------
 
@@ -560,6 +572,14 @@ pairs.
    * use of message payload to store headers makes it possible to consider
      other messaging protocols, such as MQTT 3.1.1, in future. 
 
+   * In v03, there is a *T* separating date from time in datestamps.
+
+   * In v03, the 'content' header can be used to store the body of the file
+     advertised, either text (utf-8) or binary (base64) encoded.
+
+   * v03 'integrity' header replaces 'sum' of v02... with an idea of allowing
+     digital singatures to be used in addition to simple checksums.
+
    * In v03, pure JSON payload simplifies implementations, reduces documentation
      required, and amount of parsing to implement.  Using a commonly implemented
      format permits use of existing optimized parsers.
@@ -681,10 +701,10 @@ created in 2015, is the third iteration of the protocol and existing servers rou
 versions simultaneously in this way.  The second sub-topic defines the type of message.
 At the time of writing:  v02.post is the topic prefix for current post messages.
 
-No data 
-~~~~~~~
+Little data 
+~~~~~~~~~~~
 
-The AMQP messages contain announcements, no actual file data. AMQP is optimized for and assumes 
+The AMQP messages contain announcements, little actual file data. AMQP is optimized for and assumes 
 small messages. Keeping the messages small allows for maximum message throughtput and permits
 clients to use priority mechanisms based on transfer of data, rather than the announcements.
 Accomodating large messages would create many practical complications, and inevitably require 
@@ -696,6 +716,11 @@ Blocks of large files are announced independently and blocks can follow differen
 between initial pump and final delivery. The protocol is unidirectional, in that there 
 is no dialogue between publisher and subscriber. Each post is a stand-alone item that 
 is one message in a stream, which on receipt may be spread over a number of nodes. 
+
+However, in version 3, as an optimization for dealing with small files, a *content* header
+has been added, to include file data in the message body. The maximum size of content 
+that can be *inlined* in the message is implementation dependent, and there is a tradeoff
+between metadata size and message passing performance that will make it work less 
 
 Other Parameters
 ~~~~~~~~~~~~~~~~
